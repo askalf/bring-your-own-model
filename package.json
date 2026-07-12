@@ -1,0 +1,50 @@
+{
+  "name": "bring-your-own-model",
+  "version": "0.1.0",
+  "description": "Run Claude Code on any OpenAI or OpenAI-compatible model. A tiny, dependency-free local proxy that translates the Anthropic Messages API to and from OpenAI (Responses API + Chat Completions).",
+  "type": "module",
+  "bin": {
+    "byom": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "pretest": "npm run build",
+    "test": "node --test test/*.mjs",
+    "dev": "tsx src/cli.ts",
+    "start": "node dist/cli.js"
+  },
+  "keywords": [
+    "claude-code",
+    "openai",
+    "openai-compatible",
+    "anthropic",
+    "messages-api",
+    "responses-api",
+    "chat-completions",
+    "llm",
+    "proxy",
+    "bridge",
+    "translator",
+    "groq",
+    "openrouter",
+    "litellm",
+    "ollama",
+    "gpt",
+    "cli"
+  ],
+  "author": "Thomas Sprayberry",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

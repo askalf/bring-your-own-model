@@ -1,0 +1,7 @@
+node_modules/
+dist/
+
+# logs / editor / OS cruft
+*.log
+npm-debug.log*
+.DS_Store
