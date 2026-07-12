@@ -497,8 +497,13 @@ export function anthropicToOpenAIRequest(
   }
 
   if (typeof body.max_tokens === 'number' && body.max_tokens > 0) {
-    if (options.useMaxCompletionTokens) out.max_completion_tokens = body.max_tokens;
-    else out.max_tokens = body.max_tokens;
+    // Clamp to a safe chat-completions output ceiling. Clients (Claude Code)
+    // size max_tokens for their own big-context model (up to 64000); most chat
+    // models cap far lower (gpt-4o: 16384) and return 400 on an over-large value.
+    const CHAT_MAX_OUTPUT = 16384;
+    const capped = Math.min(body.max_tokens, CHAT_MAX_OUTPUT);
+    if (options.useMaxCompletionTokens) out.max_completion_tokens = capped;
+    else out.max_tokens = capped;
   }
   if (typeof body.temperature === 'number') out.temperature = body.temperature;
   if (typeof body.top_p === 'number') out.top_p = body.top_p;
