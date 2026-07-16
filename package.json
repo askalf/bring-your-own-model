@@ -14,7 +14,7 @@
   "scripts": {
     "build": "tsc",
     "pretest": "npm run build",
-    "test": "node --test test/",
+    "test": "node --test",
     "dev": "tsx src/cli.ts",
     "start": "node dist/cli.js"
   },
