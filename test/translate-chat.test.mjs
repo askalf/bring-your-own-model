@@ -234,11 +234,12 @@ test('server tools without input_schema are skipped', () => {
   assert.equal(out.tools[0].function.name, 'real_tool');
 });
 
-test('thinking budget maps to reasoning_effort at documented thresholds', () => {
+test('thinking budget maps to reasoning_effort at documented thresholds (opt-in)', () => {
   const eff = (thinking) =>
     anthropicToOpenAIRequest(
       { model: 'm', max_tokens: 1, messages: [{ role: 'user', content: 'x' }], thinking },
       'gpt-5.6-sol',
+      { emitReasoningEffort: true },
     ).reasoning_effort;
 
   assert.equal(eff(undefined), undefined);
@@ -249,6 +250,41 @@ test('thinking budget maps to reasoning_effort at documented thresholds', () => 
   assert.equal(eff({ type: 'enabled', budget_tokens: REASONING_EFFORT_MEDIUM_MAX }), 'medium');
   assert.equal(eff({ type: 'enabled', budget_tokens: REASONING_EFFORT_MEDIUM_MAX + 1 }), 'high');
   assert.equal(eff({ type: 'enabled', budget_tokens: 31999 }), 'high');
+});
+
+test('reasoning_effort is NOT emitted unless opted in (gpt-4o 400 regression)', () => {
+  // A non-reasoning chat model (gpt-4o, …) rejects reasoning_effort with a
+  // 400, so the default translation must omit it even when the client sends
+  // a thinking budget — the wiring opts in only for reasoning-era models.
+  const body = {
+    model: 'm',
+    max_tokens: 1,
+    messages: [{ role: 'user', content: 'x' }],
+    thinking: { type: 'enabled', budget_tokens: 31999 },
+  };
+  assert.equal(anthropicToOpenAIRequest(body, 'gpt-4o').reasoning_effort, undefined);
+  assert.equal(
+    anthropicToOpenAIRequest(body, 'gpt-4o', { emitReasoningEffort: false }).reasoning_effort,
+    undefined,
+  );
+});
+
+test('max_tokens is clamped to the chat-completions ceiling (gpt-4o 400 regression)', () => {
+  // Claude Code sizes max_tokens for its own big-context model (64000); most
+  // chat models cap far lower (gpt-4o: 16384) and 400 on an over-large value.
+  const body = (maxTokens) => ({
+    model: 'm',
+    max_tokens: maxTokens,
+    messages: [{ role: 'user', content: 'x' }],
+  });
+  assert.equal(anthropicToOpenAIRequest(body(64000), 'gpt-4o').max_tokens, 16384);
+  assert.equal(anthropicToOpenAIRequest(body(16384), 'gpt-4o').max_tokens, 16384);
+  assert.equal(anthropicToOpenAIRequest(body(512), 'gpt-4o').max_tokens, 512);
+  // The clamp applies to the max_completion_tokens spelling too.
+  assert.equal(
+    anthropicToOpenAIRequest(body(64000), 'o3', { useMaxCompletionTokens: true }).max_completion_tokens,
+    16384,
+  );
 });
 
 test('max_completion_tokens flag, sampling params, stream_options', () => {

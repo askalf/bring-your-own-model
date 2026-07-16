@@ -18,6 +18,7 @@ import {
 
 interface CliArgs {
   model?: string;
+  fastModel?: string;
   port: number;
   baseUrl: string;
   verbose: boolean;
@@ -32,6 +33,9 @@ Usage:
 Options:
   --model <id>        Target model to route every request to (required).
                       e.g. gpt-5.6-sol, gpt-4o, llama-3.3-70b
+  --fast-model <id>   Cheaper model for Claude Code's haiku-tier sub-agent
+                      requests (Explore/Task fan-outs). Unset = everything
+                      runs on --model. e.g. --fast-model gpt-4o
   --port <n>          Port to listen on (default: ${DEFAULT_PORT}).
   --base-url <url>    OpenAI-compatible base URL
                       (default: ${DEFAULT_BASE_URL}).
@@ -78,6 +82,12 @@ export function parseArgs(argv: string[]): CliArgs {
         const raw = readValue(flag, inline, argv[i + 1]);
         if (inline === undefined) i++;
         args.model = raw;
+        break;
+      }
+      case '--fast-model': {
+        const raw = readValue(flag, inline, argv[i + 1]);
+        if (inline === undefined) i++;
+        args.fastModel = raw;
         break;
       }
       case '--port': {
@@ -154,6 +164,7 @@ function main(): void {
 
   const config: BridgeConfig = {
     model: args.model,
+    fastModel: args.fastModel,
     baseUrl: args.baseUrl,
     apiKey,
     verbose: args.verbose,
@@ -178,6 +189,7 @@ function main(): void {
       'byom — Claude Code → OpenAI bridge',
       `  listening    ${url}`,
       `  model        ${args.model}`,
+      args.fastModel ? `  fast model   ${args.fastModel} (haiku-tier sub-agents)` : '',
       `  base url     ${args.baseUrl}`,
       `  api surface  ${api}`,
       args.verbose ? '  verbose      on' : '',

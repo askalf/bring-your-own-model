@@ -64,6 +64,14 @@ const SECURITY_HEADERS: Record<string, string> = {
 export interface BridgeConfig {
   /** Forced target model — every request routes here (e.g. `gpt-5.6-sol`). */
   model: string;
+  /**
+   * Optional cheap model for haiku-tier requests. Claude Code deliberately
+   * runs throwaway sub-agent (Explore/Task) turns on its haiku tier; with a
+   * single forced `--model` those would all hit the premium model. When set,
+   * an inbound request whose model matches /haiku/i routes here instead.
+   * Unset → every request routes to `model` (unchanged behavior).
+   */
+  fastModel?: string;
   /** OpenAI-compatible base URL, e.g. `https://api.openai.com/v1`. */
   baseUrl: string;
   /** Backend API key (from `OPENAI_API_KEY`). */
@@ -86,6 +94,12 @@ export interface OpenAITarget {
   model: string;
   /** Which OpenAI surface to translate to. */
   api: 'responses' | 'chat';
+  /**
+   * Which routing tier picked `model`: `fast` when a haiku-tier request was
+   * routed to `--fast-model`, `primary` otherwise (the `--model` default, or
+   * an explicit per-request override). Surfaced in the `-v` log.
+   */
+  tier: 'fast' | 'primary';
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -158,26 +172,48 @@ export function pickApi(baseUrl: string, model: string): 'responses' | 'chat' {
  * `local:`) in its `model` field. A `claude:` / `anthropic:` prefix, a bare
  * `claude-*` name, or no model at all all fall through to the forced model:
  * there is no Claude upstream here, so the operator's `--model` is honored.
+ *
+ * Tier-aware routing (`fastModel`): Claude Code deliberately runs its
+ * throwaway sub-agent (Explore/Task) turns on the haiku tier and the main
+ * conversation on opus/sonnet/fable. When a fast-model is configured, an
+ * inbound request whose model matches /haiku/i is routed to that cheaper
+ * model instead of the forced `--model`. An explicit per-request `openai:`
+ * prefix still wins, and a misconfigured `claude:`-prefixed fast-model
+ * degrades safely to the primary.
  */
 export function resolveOpenAITarget(params: {
   path: string;
   model: string | undefined;
   forcedModel: string;
   baseUrl: string;
+  fastModel?: string | null;
 }): OpenAITarget | null {
   if (params.path !== '/v1/messages' && params.path !== '/v1/messages/count_tokens') {
     return null;
   }
 
   let realModel = params.forcedModel;
+  let tier: 'fast' | 'primary' = 'primary';
   const reqModel = typeof params.model === 'string' ? params.model : '';
   const prefix = parseProviderPrefix(reqModel);
   if (prefix && prefix.provider === 'openai') {
     realModel = prefix.model; // explicit per-request OpenAI model override
+  } else if (params.fastModel && /haiku/i.test(reqModel)) {
+    // Haiku-tier request → the cheap fast-model. Tolerate an `openai:`-family
+    // prefix on the flag value; a `claude:` prefix has no meaning here and
+    // falls through to the primary.
+    const fastPrefix = parseProviderPrefix(params.fastModel);
+    const fast = fastPrefix
+      ? (fastPrefix.provider === 'openai' ? fastPrefix.model : null)
+      : params.fastModel; // bare model id
+    if (fast) {
+      realModel = fast;
+      tier = 'fast';
+    }
   }
 
   if (!realModel) return null;
-  return { model: realModel, api: pickApi(params.baseUrl, realModel) };
+  return { model: realModel, api: pickApi(params.baseUrl, realModel), tier };
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -271,6 +307,10 @@ export async function handleTranslatedOpenAI(
       // to Responses, so on the chat path this only bites a non-openai.com
       // provider that also demands the newer field.)
       useMaxCompletionTokens: openaiProper && reasoningEra,
+      // reasoning_effort is only valid on reasoning-era models — a
+      // non-reasoning chat model (gpt-4o, …) 400s on the field, so gate it
+      // on the CHOSEN model (a fast-tier gpt-4o sub-agent request omits it).
+      emitReasoningEffort: reasoningEra,
     });
     const p = oaReq as unknown as Record<string, unknown>;
     // gpt-5.x (and the o-series) REJECT function tools together with reasoning
@@ -310,7 +350,7 @@ export async function handleTranslatedOpenAI(
 
   try {
     if (verbose) {
-      console.log(`${LOG_PREFIX} #${reqNum} → openai translate (${target.api}) ${url} model=${target.model} stream=${stream}`);
+      console.log(`${LOG_PREFIX} #${reqNum} → openai translate (${target.api}) ${url} model=${target.model} tier=${target.tier} stream=${stream}`);
     }
     const upstream = await fetch(url, {
       method: 'POST',
@@ -543,6 +583,7 @@ export function createRequestHandler(
           ok: true,
           service: 'bring-your-own-model',
           model: config.model,
+          ...(config.fastModel ? { fastModel: config.fastModel } : {}),
           baseUrl: config.baseUrl,
           api: pickApi(config.baseUrl, config.model),
         }));
@@ -584,6 +625,7 @@ export function createRequestHandler(
         model: body.model,
         forcedModel: config.model,
         baseUrl: config.baseUrl,
+        fastModel: config.fastModel,
       });
       if (!target) {
         writeJson(res, 400, corsOrigin, anthropicErrorBody('invalid_request_error', 'No target model is configured.'));

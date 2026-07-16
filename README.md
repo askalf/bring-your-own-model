@@ -53,6 +53,7 @@ byom --model <id> [options]
 | Flag              | Default                     | Meaning                                                        |
 | ----------------- | --------------------------- | -------------------------------------------------------------- |
 | `--model <id>`    | *(required)*                | The model every request routes to, e.g. `gpt-5.6-sol`, `gpt-4o`. |
+| `--fast-model <id>` | *(unset)*                 | Cheaper model for Claude Code's haiku-tier sub-agent requests (Explore/Task fan-outs), e.g. `gpt-4o`. Unset = everything runs on `--model`. |
 | `--port <n>`      | `8788`                      | Port the bridge listens on.                                    |
 | `--base-url <url>`| `https://api.openai.com/v1` | OpenAI-compatible base URL (Groq, OpenRouter, LiteLLM, Ollama). |
 | `-v`, `--verbose` | off                         | Log each request's target model + usage / reasoning tokens.    |
@@ -63,8 +64,14 @@ that needs no key, set it to any non-empty placeholder.
 
 A per-request override is supported: prefix the request model with
 `openai:<model>` (or `groq:` / `openrouter:` / `compat:` / `local:`) to route
-that one turn to a different model id. Otherwise `--model` always wins — this
+that one turn to a different model id. Otherwise `--model` always wins (with
+`--fast-model`, haiku-tier requests route to the cheap model instead) — this
 bridge only ever speaks to the configured OpenAI-compatible backend.
+
+Why `--fast-model`: Claude Code deliberately runs its throwaway sub-agent
+turns (Explore, Task fan-outs) on its cheap haiku tier. With a single forced
+`--model`, those all silently upgrade to your premium model — on a fan-out
+task that multiplies cost for work that never needed the big model.
 
 ## Which models
 

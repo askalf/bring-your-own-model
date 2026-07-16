@@ -12,7 +12,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 
-import { createBridgeServer } from '../dist/proxy.js';
+import { createBridgeServer, resolveOpenAITarget } from '../dist/proxy.js';
 
 // A non-secret placeholder key (deliberately NOT of the `sk-…` real shape).
 const TEST_KEY = 'test-key-123';
@@ -289,4 +289,81 @@ test('count_tokens returns a local input_tokens estimate without calling upstrea
   } finally {
     await closeServer(server);
   }
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// Tier-aware routing (--fast-model) — pure resolveOpenAITarget units
+// ─────────────────────────────────────────────────────────────────────
+
+test('fast-model: haiku-tier request routes to the cheap model', () => {
+  const target = resolveOpenAITarget({
+    path: '/v1/messages',
+    model: 'claude-haiku-4-5-20251001',
+    forcedModel: 'gpt-5.6-sol',
+    baseUrl: 'https://api.openai.com/v1',
+    fastModel: 'gpt-4o',
+  });
+  assert.equal(target.model, 'gpt-4o');
+  assert.equal(target.tier, 'fast');
+  assert.equal(target.api, 'chat'); // surface follows the CHOSEN model
+});
+
+test('fast-model: non-haiku request stays on the primary', () => {
+  const target = resolveOpenAITarget({
+    path: '/v1/messages',
+    model: 'claude-fable-5',
+    forcedModel: 'gpt-5.6-sol',
+    baseUrl: 'https://api.openai.com/v1',
+    fastModel: 'gpt-4o',
+  });
+  assert.equal(target.model, 'gpt-5.6-sol');
+  assert.equal(target.tier, 'primary');
+  assert.equal(target.api, 'responses');
+});
+
+test('fast-model: unset keeps everything on the primary (back-compat)', () => {
+  const target = resolveOpenAITarget({
+    path: '/v1/messages',
+    model: 'claude-haiku-4-5-20251001',
+    forcedModel: 'gpt-5.6-sol',
+    baseUrl: 'https://api.openai.com/v1',
+  });
+  assert.equal(target.model, 'gpt-5.6-sol');
+  assert.equal(target.tier, 'primary');
+});
+
+test('fast-model: openai:-family prefix on the flag value is stripped', () => {
+  const target = resolveOpenAITarget({
+    path: '/v1/messages',
+    model: 'claude-haiku-4-5-20251001',
+    forcedModel: 'gpt-5.6-sol',
+    baseUrl: 'https://api.openai.com/v1',
+    fastModel: 'openai:gpt-4o',
+  });
+  assert.equal(target.model, 'gpt-4o');
+  assert.equal(target.tier, 'fast');
+});
+
+test('fast-model: a claude:-prefixed value degrades safely to the primary', () => {
+  const target = resolveOpenAITarget({
+    path: '/v1/messages',
+    model: 'claude-haiku-4-5-20251001',
+    forcedModel: 'gpt-5.6-sol',
+    baseUrl: 'https://api.openai.com/v1',
+    fastModel: 'claude:haiku',
+  });
+  assert.equal(target.model, 'gpt-5.6-sol');
+  assert.equal(target.tier, 'primary');
+});
+
+test('fast-model: an explicit per-request openai: override wins over tiering', () => {
+  const target = resolveOpenAITarget({
+    path: '/v1/messages',
+    model: 'openai:gpt-4.1-mini',
+    forcedModel: 'gpt-5.6-sol',
+    baseUrl: 'https://api.openai.com/v1',
+    fastModel: 'gpt-4o',
+  });
+  assert.equal(target.model, 'gpt-4.1-mini');
+  assert.equal(target.tier, 'primary');
 });

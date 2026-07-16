@@ -187,7 +187,7 @@ export interface OpenAIChatRequest {
   stop?: string[];
   stream?: boolean;
   stream_options?: { include_usage: boolean };
-  reasoning_effort?: 'low' | 'medium' | 'high';
+  reasoning_effort?: 'none' | 'low' | 'medium' | 'high';
   user?: string;
 }
 
@@ -250,6 +250,13 @@ export interface AnthropicToOpenAIOptions {
    * backend is OpenAI proper and the model is a reasoning model.
    */
   useMaxCompletionTokens?: boolean;
+  /**
+   * Emit `reasoning_effort` (mapped from the client's thinking budget). Only
+   * valid for reasoning-era models; non-reasoning chat models (gpt-4o, …) 400
+   * with "Unrecognized request argument: reasoning_effort". Default false —
+   * the wiring layer sets this when the CHOSEN model is a reasoning model.
+   */
+  emitReasoningEffort?: boolean;
   /**
    * Role for the flattened system prompt. Default 'system' (universal);
    * 'developer' is the OpenAI-preferred spelling for reasoning models.
@@ -518,8 +525,11 @@ export function anthropicToOpenAIRequest(
     }
   }
 
+  // reasoning_effort is only valid for reasoning-era models. Non-reasoning
+  // chat models (gpt-4o, …) 400 on it, so it is opt-in: the proxy passes
+  // emitReasoningEffort based on the CHOSEN (post-tier-routing) model.
   const effort = thinkingToReasoningEffort(body.thinking);
-  if (effort) out.reasoning_effort = effort;
+  if (effort && options.emitReasoningEffort) out.reasoning_effort = effort;
 
   const userId = body.metadata?.user_id;
   if (typeof userId === 'string' && userId.length > 0) out.user = userId;
