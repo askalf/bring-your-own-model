@@ -1,0 +1,5 @@
+# Code owners for bring-your-own-model.
+# Both must be listed: @askalf authors the PRs and cannot approve its own, so
+# @sprayberry-reviewer (fleet Code Reviewer, write-access collaborator) is
+# required to satisfy code-owner review without deadlocking every PR.
+* @askalf @sprayberry-reviewer
