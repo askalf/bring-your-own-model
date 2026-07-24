@@ -1,5 +1,8 @@
 # bring-your-own-model — run Claude Code on any model
 
+[![CI](https://github.com/askalf/bring-your-own-model/actions/workflows/ci.yml/badge.svg)](https://github.com/askalf/bring-your-own-model/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/askalf/bring-your-own-model/badge)](https://scorecard.dev/viewer/?uri=github.com/askalf/bring-your-own-model)
+
 Claude Code speaks one wire protocol: the Anthropic Messages API. This is a
 tiny local proxy that translates that protocol **to and from OpenAI** (the
 Responses API and Chat Completions), so you can point Claude Code at GPT-5.6
