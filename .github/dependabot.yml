@@ -7,6 +7,16 @@ updates:
       day: monday
     open-pull-requests-limit: 5
 
+  # Build-side fuzz deps (ClusterFuzzLite). Kept out of root package.json so the
+  # published tree stays dependency-free; without this entry the lockfile here is
+  # watched by nothing and drifts (e.g. transitive tar → Scorecard Vulnerabilities).
+  - package-ecosystem: npm
+    directory: /.clusterfuzzlite
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
