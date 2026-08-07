@@ -3,6 +3,13 @@
 [![CI](https://github.com/askalf/bring-your-own-model/actions/workflows/ci.yml/badge.svg)](https://github.com/askalf/bring-your-own-model/actions/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/askalf/bring-your-own-model/badge)](https://scorecard.dev/viewer/?uri=github.com/askalf/bring-your-own-model)
 
+> **Archived — August 2026.** This bridge works as documented, and the code
+> stays up to read. But it is a finished experiment, not a maintained product:
+> no further releases are planned. The routing layers we do maintain are
+> [dario](https://github.com/askalf/dario) (your Claude subscription behind one
+> local endpoint) and [hybrid](https://github.com/askalf/hybrid) (local-first
+> model routing).
+
 Claude Code speaks one wire protocol: the Anthropic Messages API. This is a
 tiny local proxy that translates that protocol **to and from OpenAI** (the
 Responses API and Chat Completions), so you can point Claude Code at GPT-5.6
